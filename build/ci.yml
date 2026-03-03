@@ -1,0 +1,37 @@
+# Placeholder CI pipeline — Azure DevOps / GitHub Actions
+# Replace with your actual CI provider configuration.
+
+trigger:
+  branches:
+    include:
+      - main
+      - release/*
+
+pool:
+  vmImage: 'windows-latest'  # .NET Framework 4.7.2 requires Windows
+
+variables:
+  buildConfiguration: 'Release'
+
+steps:
+  - task: NuGetToolInstaller@1
+    displayName: 'Install NuGet'
+
+  - task: NuGetCommand@2
+    displayName: 'Restore NuGet Packages'
+    inputs:
+      restoreSolution: 'Contoso.NotificationRelay.Legacy.sln'
+
+  - task: MSBuild@1
+    displayName: 'Build Solution'
+    inputs:
+      solution: 'Contoso.NotificationRelay.Legacy.sln'
+      configuration: $(buildConfiguration)
+
+  - task: VSTest@2
+    displayName: 'Run Tests'
+    inputs:
+      testAssemblyVer2: |
+        **\*UnitTests*.dll
+      searchFolder: '$(System.DefaultWorkingDirectory)'
+      configuration: $(buildConfiguration)
