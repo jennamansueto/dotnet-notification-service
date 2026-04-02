@@ -33,9 +33,10 @@ namespace Contoso.NotificationRelay.Service
                 {
                     while (!stoppingToken.IsCancellationRequested)
                     {
+                        bool processed;
                         try
                         {
-                            engine.PollOnce();
+                            processed = engine.PollOnce();
                         }
                         catch (Exception ex)
                         {
@@ -44,7 +45,12 @@ namespace Contoso.NotificationRelay.Service
                             continue;
                         }
 
-                        await Task.Delay(_options.PollIntervalMs, stoppingToken);
+                        // Only delay when the queue is empty, matching the original
+                        // PollLoop behavior that drained messages back-to-back.
+                        if (!processed)
+                        {
+                            await Task.Delay(_options.PollIntervalMs, stoppingToken);
+                        }
                     }
                 }
             }

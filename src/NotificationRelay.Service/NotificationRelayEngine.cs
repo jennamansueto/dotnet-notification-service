@@ -40,13 +40,14 @@ namespace Contoso.NotificationRelay.Service
         /// Performs a single poll iteration: dequeues one message and dispatches it.
         /// Called repeatedly by the BackgroundService loop.
         /// </summary>
-        public void PollOnce()
+        /// <returns>True if a message was dequeued and processed; false if the queue was empty.</returns>
+        public bool PollOnce()
         {
             var message = _queueConsumer.Dequeue();
 
             if (message == null)
             {
-                return;
+                return false;
             }
 
             _logger.Info(string.Format(
@@ -61,6 +62,8 @@ namespace Contoso.NotificationRelay.Service
                     "Failed to dispatch MessageId={0} after retries.",
                     message.MessageId));
             }
+
+            return true;
         }
 
         public void Dispose()
