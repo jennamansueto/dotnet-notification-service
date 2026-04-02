@@ -1,67 +1,35 @@
-using System;
-using System.Linq;
-using System.ServiceProcess;
-using Contoso.NotificationRelay.Infrastructure.Logging;
+using Contoso.NotificationRelay.Application.Dispatching;
+using Contoso.NotificationRelay.Application.Options;
+using Contoso.NotificationRelay.Application.Retry;
+using Contoso.NotificationRelay.Domain.Interfaces;
+using Contoso.NotificationRelay.Infrastructure.Deduplication;
+using Contoso.NotificationRelay.Infrastructure.Providers;
+using Contoso.NotificationRelay.Infrastructure.Queue;
+using Contoso.NotificationRelay.Service;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 
-namespace Contoso.NotificationRelay.Service
-{
-    public class Program
+var builder = Host.CreateDefaultBuilder(args)
+    .UseWindowsService()
+    .ConfigureServices((ctx, services) =>
     {
-        public static void Main(string[] args)
+        services.Configure<NotificationRelayOptions>(
+            ctx.Configuration.GetSection(NotificationRelayOptions.SectionName));
+
+        services.AddSingleton<IEmailSender, InMemoryEmailSender>();
+        services.AddSingleton<ISmsSender, InMemorySmsSender>();
+        services.AddSingleton<ITeamsSender, InMemoryTeamsSender>();
+        services.AddSingleton<IQueueConsumer, InMemoryQueueConsumer>();
+        services.AddSingleton<IDeduplicationStore, InMemoryDeduplicationStore>();
+        services.AddSingleton<RetryPolicy>(sp =>
         {
-            bool runAsService = args.Any(a =>
-                a.Equals("--service", StringComparison.OrdinalIgnoreCase));
+            var options = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<NotificationRelayOptions>>().Value;
+            var logger = sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<RetryPolicy>>();
+            return new RetryPolicy(logger, options.RetryCount, options.RetryBackoffMs);
+        });
+        services.AddSingleton<NotificationDispatcher>();
+        services.AddHostedService<NotificationRelayEngine>();
+    });
 
-            if (runAsService)
-            {
-                // Windows Service mode — hand off to SCM
-                var logger = new FileAndConsoleLogger(AppSettings.LogDirectory);
-                var service = new NotificationRelayWindowsService(logger);
-                ServiceBase.Run(service);
-            }
-            else
-            {
-                // Interactive console mode
-                RunConsole();
-            }
-        }
-
-        private static void RunConsole()
-        {
-            using (var logger = new FileAndConsoleLogger(AppSettings.LogDirectory))
-            {
-                Console.WriteLine("=== Contoso Notification Relay Service (Console Mode) ===");
-                Console.WriteLine("Press Ctrl+C or 'Q' to stop.");
-                Console.WriteLine();
-
-                using (var engine = new NotificationRelayEngine(logger))
-                {
-                    engine.Start();
-
-                    Console.CancelKeyPress += (sender, e) =>
-                    {
-                        e.Cancel = true;
-                        engine.Stop();
-                    };
-
-                    // Block until user presses Q or Ctrl+C stops the engine
-                    while (true)
-                    {
-                        if (Console.KeyAvailable)
-                        {
-                            var key = Console.ReadKey(intercept: true);
-                            if (key.Key == ConsoleKey.Q)
-                            {
-                                break;
-                            }
-                        }
-                        System.Threading.Thread.Sleep(250);
-                    }
-                }
-            }
-
-            Console.WriteLine("Service stopped. Press any key to exit.");
-            Console.ReadKey();
-        }
-    }
-}
+var host = builder.Build();
+await host.RunAsync();
