@@ -14,7 +14,7 @@ builder.Services.Configure<NotificationRelayOptions>(
 // Register the custom ILogger (kept per user request — not replacing with M.E.Logging)
 var options = new NotificationRelayOptions();
 builder.Configuration.GetSection("NotificationRelay").Bind(options);
-builder.Services.AddSingleton<ILogger>(new FileAndConsoleLogger(options.LogDirectory));
+builder.Services.AddSingleton<ILogger>(sp => new FileAndConsoleLogger(options.LogDirectory));
 
 // Support running as a Windows Service (no-op on Linux / console mode)
 builder.Services.AddWindowsService();

@@ -27,23 +27,30 @@ namespace Contoso.NotificationRelay.Service
         {
             _logger.Info("NotificationRelayWorker started.");
 
-            using (var engine = new NotificationRelayEngine(_logger, _options))
+            try
             {
-                while (!stoppingToken.IsCancellationRequested)
+                using (var engine = new NotificationRelayEngine(_logger, _options))
                 {
-                    try
+                    while (!stoppingToken.IsCancellationRequested)
                     {
-                        engine.PollOnce();
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.Error(string.Format("Unhandled exception in poll loop: {0}", ex));
-                        await Task.Delay(5000, stoppingToken);
-                        continue;
-                    }
+                        try
+                        {
+                            engine.PollOnce();
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.Error(string.Format("Unhandled exception in poll loop: {0}", ex));
+                            await Task.Delay(5000, stoppingToken);
+                            continue;
+                        }
 
-                    await Task.Delay(_options.PollIntervalMs, stoppingToken);
+                        await Task.Delay(_options.PollIntervalMs, stoppingToken);
+                    }
                 }
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                // Normal shutdown — host cancelled the token
             }
 
             _logger.Info("NotificationRelayWorker stopped.");
