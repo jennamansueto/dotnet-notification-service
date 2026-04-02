@@ -1,67 +1,26 @@
-using System;
-using System.Linq;
-using System.ServiceProcess;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Contoso.NotificationRelay.Domain.Interfaces;
 using Contoso.NotificationRelay.Infrastructure.Logging;
+using Contoso.NotificationRelay.Service;
 
-namespace Contoso.NotificationRelay.Service
-{
-    public class Program
-    {
-        public static void Main(string[] args)
-        {
-            bool runAsService = args.Any(a =>
-                a.Equals("--service", StringComparison.OrdinalIgnoreCase));
+var builder = Host.CreateApplicationBuilder(args);
 
-            if (runAsService)
-            {
-                // Windows Service mode — hand off to SCM
-                var logger = new FileAndConsoleLogger(AppSettings.LogDirectory);
-                var service = new NotificationRelayWindowsService(logger);
-                ServiceBase.Run(service);
-            }
-            else
-            {
-                // Interactive console mode
-                RunConsole();
-            }
-        }
+// Bind the "NotificationRelay" config section to strongly-typed options
+builder.Services.Configure<NotificationRelayOptions>(
+    builder.Configuration.GetSection("NotificationRelay"));
 
-        private static void RunConsole()
-        {
-            using (var logger = new FileAndConsoleLogger(AppSettings.LogDirectory))
-            {
-                Console.WriteLine("=== Contoso Notification Relay Service (Console Mode) ===");
-                Console.WriteLine("Press Ctrl+C or 'Q' to stop.");
-                Console.WriteLine();
+// Register the custom ILogger (kept per user request — not replacing with M.E.Logging)
+var options = new NotificationRelayOptions();
+builder.Configuration.GetSection("NotificationRelay").Bind(options);
+builder.Services.AddSingleton<ILogger>(sp => new FileAndConsoleLogger(options.LogDirectory));
 
-                using (var engine = new NotificationRelayEngine(logger))
-                {
-                    engine.Start();
+// Support running as a Windows Service (no-op on Linux / console mode)
+builder.Services.AddWindowsService();
 
-                    Console.CancelKeyPress += (sender, e) =>
-                    {
-                        e.Cancel = true;
-                        engine.Stop();
-                    };
+// Register the background worker
+builder.Services.AddHostedService<NotificationRelayWorker>();
 
-                    // Block until user presses Q or Ctrl+C stops the engine
-                    while (true)
-                    {
-                        if (Console.KeyAvailable)
-                        {
-                            var key = Console.ReadKey(intercept: true);
-                            if (key.Key == ConsoleKey.Q)
-                            {
-                                break;
-                            }
-                        }
-                        System.Threading.Thread.Sleep(250);
-                    }
-                }
-            }
-
-            Console.WriteLine("Service stopped. Press any key to exit.");
-            Console.ReadKey();
-        }
-    }
-}
+var host = builder.Build();
+host.Run();
