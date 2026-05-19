@@ -1,52 +1,49 @@
-using System;
-using System.Threading;
-using Contoso.NotificationRelay.Domain.Interfaces;
+using Microsoft.Extensions.Logging;
 
-namespace Contoso.NotificationRelay.Application.Retry
+namespace Contoso.NotificationRelay.Application.Retry;
+
+public class RetryPolicy
 {
-    public class RetryPolicy
+    private readonly int _maxRetries;
+    private readonly int _initialBackoffMs;
+    private readonly ILogger<RetryPolicy> _logger;
+
+    public RetryPolicy(ILogger<RetryPolicy> logger, int maxRetries, int initialBackoffMs)
     {
-        private readonly int _maxRetries;
-        private readonly int _initialBackoffMs;
-        private readonly ILogger _logger;
+        _logger = logger;
+        _maxRetries = maxRetries;
+        _initialBackoffMs = initialBackoffMs;
+    }
 
-        public RetryPolicy(ILogger logger, int maxRetries, int initialBackoffMs)
+    public async Task<bool> ExecuteAsync(Func<Task> action, string operationName, string correlationId, CancellationToken cancellationToken = default)
+    {
+        for (int attempt = 1; attempt <= _maxRetries; attempt++)
         {
-            _logger = logger;
-            _maxRetries = maxRetries;
-            _initialBackoffMs = initialBackoffMs;
-        }
-
-        public bool Execute(Action action, string operationName, string correlationId)
-        {
-            for (int attempt = 1; attempt <= _maxRetries; attempt++)
+            try
             {
-                try
+                await action();
+                return true;
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                if (attempt < _maxRetries)
                 {
-                    action();
-                    return true;
+                    int delayMs = _initialBackoffMs * (int)Math.Pow(2, attempt - 1);
+                    _logger.LogWarning(
+                        "Attempt {Attempt}/{MaxRetries} failed for {Operation} (CorrelationId={CorrelationId}): {Error}. Retrying in {DelayMs}ms.",
+                        attempt, _maxRetries, operationName, correlationId, ex.Message, delayMs);
+                    await Task.Delay(delayMs, cancellationToken);
                 }
-                catch (Exception ex)
+                else
                 {
-                    if (attempt < _maxRetries)
-                    {
-                        int delayMs = _initialBackoffMs * (int)Math.Pow(2, attempt - 1);
-                        _logger.Warn(string.Format(
-                            "Attempt {0}/{1} failed for {2} (CorrelationId={3}): {4}. Retrying in {5}ms.",
-                            attempt, _maxRetries, operationName, correlationId, ex.Message, delayMs));
-                        Thread.Sleep(delayMs);
-                    }
-                    else
-                    {
-                        _logger.Error(string.Format(
-                            "All {0} attempts exhausted for {1} (CorrelationId={2}): {3}",
-                            _maxRetries, operationName, correlationId, ex.Message));
-                        return false;
-                    }
+                    _logger.LogError(
+                        "All {MaxRetries} attempts exhausted for {Operation} (CorrelationId={CorrelationId}): {Error}",
+                        _maxRetries, operationName, correlationId, ex.Message);
+                    return false;
                 }
             }
-
-            return false;
         }
+
+        return false;
     }
 }

@@ -1,21 +1,13 @@
-using System;
 using System.Collections.Concurrent;
 using Contoso.NotificationRelay.Domain.Interfaces;
 
-namespace Contoso.NotificationRelay.Infrastructure.Deduplication
+namespace Contoso.NotificationRelay.Infrastructure.Deduplication;
+
+public class InMemoryDeduplicationStore : IDeduplicationStore
 {
-    public class InMemoryDeduplicationStore : IDeduplicationStore
-    {
-        private readonly ConcurrentDictionary<Guid, byte> _processed = new ConcurrentDictionary<Guid, byte>();
+    private readonly ConcurrentDictionary<Guid, byte> _processed = new();
 
-        public bool HasBeenProcessed(Guid messageId)
-        {
-            return _processed.ContainsKey(messageId);
-        }
+    public bool HasBeenProcessed(Guid messageId) => _processed.ContainsKey(messageId);
 
-        public void MarkProcessed(Guid messageId)
-        {
-            _processed.TryAdd(messageId, 0);
-        }
-    }
+    public void MarkProcessed(Guid messageId) => _processed.TryAdd(messageId, 0);
 }

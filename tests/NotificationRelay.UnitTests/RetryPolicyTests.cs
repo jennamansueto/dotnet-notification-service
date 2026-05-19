@@ -1,81 +1,75 @@
-using System;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Contoso.NotificationRelay.Application.Retry;
-using Contoso.NotificationRelay.Infrastructure.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.VisualStudio.TestTools.UnitTesting;
 
-namespace Contoso.NotificationRelay.UnitTests
+namespace Contoso.NotificationRelay.UnitTests;
+
+[TestClass]
+public class RetryPolicyTests
 {
-    [TestClass]
-    public class RetryPolicyTests
+    private readonly RetryPolicy _sut = new(NullLogger<RetryPolicy>.Instance, maxRetries: 3, initialBackoffMs: 10);
+
+    [TestMethod]
+    public async Task Execute_SucceedsOnFirstAttempt_ReturnsTrue()
     {
-        private readonly RetryPolicy _sut;
+        int callCount = 0;
 
-        public RetryPolicyTests()
+        bool result = await _sut.ExecuteAsync(() => { callCount++; return Task.CompletedTask; }, "TestOp", "corr-1");
+
+        Assert.IsTrue(result);
+        Assert.AreEqual(1, callCount);
+    }
+
+    [TestMethod]
+    public async Task Execute_FailsThenSucceeds_RetriesAndReturnsTrue()
+    {
+        int callCount = 0;
+
+        bool result = await _sut.ExecuteAsync(() =>
         {
-            _sut = new RetryPolicy(new ConsoleOnlyLogger(), maxRetries: 3, initialBackoffMs: 10);
-        }
+            callCount++;
+            if (callCount < 3) throw new InvalidOperationException("transient");
+            return Task.CompletedTask;
+        }, "TestOp", "corr-2");
 
-        [TestMethod]
-        public void Execute_SucceedsOnFirstAttempt_ReturnsTrue()
+        Assert.IsTrue(result);
+        Assert.AreEqual(3, callCount);
+    }
+
+    [TestMethod]
+    public async Task Execute_AllAttemptsFail_ReturnsFalse()
+    {
+        int callCount = 0;
+
+        bool result = await _sut.ExecuteAsync(() =>
         {
-            int callCount = 0;
+            callCount++;
+            throw new InvalidOperationException("permanent");
+        }, "TestOp", "corr-3");
 
-            bool result = _sut.Execute(() => { callCount++; }, "TestOp", "corr-1");
+        Assert.IsFalse(result);
+        Assert.AreEqual(3, callCount);
+    }
 
-            Assert.IsTrue(result);
-            Assert.AreEqual(1, callCount);
-        }
+    [TestMethod]
+    public async Task Execute_AppliesBackoff_SecondRetrySlowerThanFirst()
+    {
+        var timestamps = new List<DateTimeOffset>();
 
-        [TestMethod]
-        public void Execute_FailsThenSucceeds_RetriesAndReturnsTrue()
+        bool result = await _sut.ExecuteAsync(() =>
         {
-            int callCount = 0;
+            timestamps.Add(DateTimeOffset.UtcNow);
+            if (timestamps.Count < 3) throw new InvalidOperationException("transient");
+            return Task.CompletedTask;
+        }, "TestOp", "corr-4");
 
-            bool result = _sut.Execute(() =>
-            {
-                callCount++;
-                if (callCount < 3) throw new InvalidOperationException("transient");
-            }, "TestOp", "corr-2");
-
-            Assert.IsTrue(result);
-            Assert.AreEqual(3, callCount);
-        }
-
-        [TestMethod]
-        public void Execute_AllAttemptsFail_ReturnsFalse()
+        Assert.IsTrue(result);
+        if (timestamps.Count == 3)
         {
-            int callCount = 0;
-
-            bool result = _sut.Execute(() =>
-            {
-                callCount++;
-                throw new InvalidOperationException("permanent");
-            }, "TestOp", "corr-3");
-
-            Assert.IsFalse(result);
-            Assert.AreEqual(3, callCount);
-        }
-
-        [TestMethod]
-        public void Execute_AppliesBackoff_SecondRetrySlowerThanFirst()
-        {
-            var timestamps = new System.Collections.Generic.List<DateTimeOffset>();
-
-            bool result = _sut.Execute(() =>
-            {
-                timestamps.Add(DateTimeOffset.UtcNow);
-                if (timestamps.Count < 3) throw new InvalidOperationException("transient");
-            }, "TestOp", "corr-4");
-
-            Assert.IsTrue(result);
-            if (timestamps.Count == 3)
-            {
-                TimeSpan gap1 = timestamps[1] - timestamps[0];
-                TimeSpan gap2 = timestamps[2] - timestamps[1];
-                Assert.IsTrue(gap2 >= gap1,
-                    string.Format("Expected exponential backoff: gap2 ({0}ms) >= gap1 ({1}ms)",
-                        gap2.TotalMilliseconds, gap1.TotalMilliseconds));
-            }
+            TimeSpan gap1 = timestamps[1] - timestamps[0];
+            TimeSpan gap2 = timestamps[2] - timestamps[1];
+            Assert.IsTrue(gap2 >= gap1,
+                $"Expected exponential backoff: gap2 ({gap2.TotalMilliseconds}ms) >= gap1 ({gap1.TotalMilliseconds}ms)");
         }
     }
 }

@@ -1,10 +1,7 @@
-using System;
+namespace Contoso.NotificationRelay.Domain.Interfaces;
 
-namespace Contoso.NotificationRelay.Domain.Interfaces
+public interface IDeduplicationStore
 {
-    public interface IDeduplicationStore
-    {
-        bool HasBeenProcessed(Guid messageId);
-        void MarkProcessed(Guid messageId);
-    }
+    bool HasBeenProcessed(Guid messageId);
+    void MarkProcessed(Guid messageId);
 }
