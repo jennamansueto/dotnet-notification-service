@@ -1,5 +1,5 @@
-# Placeholder CI pipeline — Azure DevOps / GitHub Actions
-# Replace with your actual CI provider configuration.
+# CI pipeline — Azure DevOps / GitHub Actions
+# .NET 8 cross-platform build
 
 trigger:
   branches:
@@ -8,30 +8,23 @@ trigger:
       - release/*
 
 pool:
-  vmImage: 'windows-latest'  # .NET Framework 4.7.2 requires Windows
+  vmImage: 'ubuntu-latest'
 
 variables:
   buildConfiguration: 'Release'
 
 steps:
-  - task: NuGetToolInstaller@1
-    displayName: 'Install NuGet'
+  - task: UseDotNet@2
+    displayName: 'Install .NET 8 SDK'
+    inputs:
+      packageType: 'sdk'
+      version: '8.0.x'
 
-  - task: NuGetCommand@2
+  - script: dotnet restore Contoso.NotificationRelay.Legacy.sln
     displayName: 'Restore NuGet Packages'
-    inputs:
-      restoreSolution: 'Contoso.NotificationRelay.Legacy.sln'
 
-  - task: MSBuild@1
+  - script: dotnet build Contoso.NotificationRelay.Legacy.sln --configuration $(buildConfiguration) --no-restore
     displayName: 'Build Solution'
-    inputs:
-      solution: 'Contoso.NotificationRelay.Legacy.sln'
-      configuration: $(buildConfiguration)
 
-  - task: VSTest@2
+  - script: dotnet test Contoso.NotificationRelay.Legacy.sln --configuration $(buildConfiguration) --no-build --logger trx
     displayName: 'Run Tests'
-    inputs:
-      testAssemblyVer2: |
-        **\*UnitTests*.dll
-      searchFolder: '$(System.DefaultWorkingDirectory)'
-      configuration: $(buildConfiguration)

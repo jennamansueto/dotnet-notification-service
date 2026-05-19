@@ -1,48 +1,48 @@
 using System;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
+using System.Threading.Tasks;
+using Xunit;
 using Contoso.NotificationRelay.Infrastructure.Deduplication;
 
 namespace Contoso.NotificationRelay.UnitTests
 {
-    [TestClass]
     public class DeduplicationStoreTests
     {
         private readonly InMemoryDeduplicationStore _sut = new InMemoryDeduplicationStore();
 
-        [TestMethod]
-        public void HasBeenProcessed_ReturnsFalse_WhenMessageIsNew()
+        [Fact]
+        public async Task HasBeenProcessedAsync_ReturnsFalse_WhenMessageIsNew()
         {
             Guid id = Guid.NewGuid();
-            Assert.IsFalse(_sut.HasBeenProcessed(id));
+            Assert.False(await _sut.HasBeenProcessedAsync(id));
         }
 
-        [TestMethod]
-        public void HasBeenProcessed_ReturnsTrue_AfterMarkProcessed()
+        [Fact]
+        public async Task HasBeenProcessedAsync_ReturnsTrue_AfterMarkProcessed()
         {
             Guid id = Guid.NewGuid();
-            _sut.MarkProcessed(id);
-            Assert.IsTrue(_sut.HasBeenProcessed(id));
+            await _sut.MarkProcessedAsync(id);
+            Assert.True(await _sut.HasBeenProcessedAsync(id));
         }
 
-        [TestMethod]
-        public void MarkProcessed_IsIdempotent()
+        [Fact]
+        public async Task MarkProcessedAsync_IsIdempotent()
         {
             Guid id = Guid.NewGuid();
-            _sut.MarkProcessed(id);
-            _sut.MarkProcessed(id); // should not throw
-            Assert.IsTrue(_sut.HasBeenProcessed(id));
+            await _sut.MarkProcessedAsync(id);
+            await _sut.MarkProcessedAsync(id); // should not throw
+            Assert.True(await _sut.HasBeenProcessedAsync(id));
         }
 
-        [TestMethod]
-        public void DifferentMessageIds_AreTrackedIndependently()
+        [Fact]
+        public async Task DifferentMessageIds_AreTrackedIndependently()
         {
             Guid id1 = Guid.NewGuid();
             Guid id2 = Guid.NewGuid();
 
-            _sut.MarkProcessed(id1);
+            await _sut.MarkProcessedAsync(id1);
 
-            Assert.IsTrue(_sut.HasBeenProcessed(id1));
-            Assert.IsFalse(_sut.HasBeenProcessed(id2));
+            Assert.True(await _sut.HasBeenProcessedAsync(id1));
+            Assert.False(await _sut.HasBeenProcessedAsync(id2));
         }
     }
 }
