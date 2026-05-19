@@ -1,21 +1,12 @@
-using System;
+namespace Contoso.NotificationRelay.Domain.Models;
 
-namespace Contoso.NotificationRelay.Domain.Models
+public record NotificationMessage
 {
-    public class NotificationMessage
-    {
-        public Guid MessageId { get; set; }
-        public NotificationType Type { get; set; }
-        public string To { get; set; }
-        public string Subject { get; set; }
-        public string Body { get; set; }
-        public string CorrelationId { get; set; }
-        public DateTimeOffset CreatedAt { get; set; }
-
-        public NotificationMessage()
-        {
-            MessageId = Guid.NewGuid();
-            CreatedAt = DateTimeOffset.UtcNow;
-        }
-    }
+    public Guid MessageId { get; init; } = Guid.NewGuid();
+    public NotificationType Type { get; init; }
+    public string To { get; init; } = string.Empty;
+    public string Subject { get; init; } = string.Empty;
+    public string Body { get; init; } = string.Empty;
+    public string CorrelationId { get; init; } = string.Empty;
+    public DateTimeOffset CreatedAt { get; init; } = DateTimeOffset.UtcNow;
 }

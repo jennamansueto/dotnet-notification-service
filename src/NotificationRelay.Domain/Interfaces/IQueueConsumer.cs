@@ -1,9 +1,8 @@
 using Contoso.NotificationRelay.Domain.Models;
 
-namespace Contoso.NotificationRelay.Domain.Interfaces
+namespace Contoso.NotificationRelay.Domain.Interfaces;
+
+public interface IQueueConsumer
 {
-    public interface IQueueConsumer
-    {
-        NotificationMessage Dequeue();
-    }
+    Task<NotificationMessage?> DequeueAsync(CancellationToken cancellationToken = default);
 }

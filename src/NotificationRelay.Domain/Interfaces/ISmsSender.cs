@@ -1,9 +1,8 @@
 using Contoso.NotificationRelay.Domain.Models;
 
-namespace Contoso.NotificationRelay.Domain.Interfaces
+namespace Contoso.NotificationRelay.Domain.Interfaces;
+
+public interface ISmsSender
 {
-    public interface ISmsSender
-    {
-        void Send(NotificationMessage message);
-    }
+    Task SendAsync(NotificationMessage message, CancellationToken cancellationToken = default);
 }

@@ -1,9 +1,8 @@
-namespace Contoso.NotificationRelay.Domain.Models
+namespace Contoso.NotificationRelay.Domain.Models;
+
+public enum NotificationType
 {
-    public enum NotificationType
-    {
-        Email,
-        Sms,
-        Teams
-    }
+    Email,
+    Sms,
+    Teams
 }
