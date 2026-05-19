@@ -64,7 +64,8 @@ namespace Contoso.NotificationRelay.Service
                 catch (Exception ex)
                 {
                     _logger.LogError(ex, "Unhandled exception in poll loop.");
-                    await Task.Delay(5000, stoppingToken).ConfigureAwait(false);
+                    try { await Task.Delay(5000, stoppingToken).ConfigureAwait(false); }
+                    catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { break; }
                 }
             }
 
