@@ -1,6 +1,9 @@
 using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Channels;
+using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 using Contoso.NotificationRelay.Domain.Interfaces;
 using Contoso.NotificationRelay.Domain.Models;
 
@@ -8,10 +11,10 @@ namespace Contoso.NotificationRelay.Infrastructure.Queue
 {
     public class InMemoryQueueConsumer : IQueueConsumer
     {
-        private readonly ConcurrentQueue<NotificationMessage> _queue = new ConcurrentQueue<NotificationMessage>();
-        private readonly ILogger _logger;
+        private readonly Channel<NotificationMessage> _channel = Channel.CreateUnbounded<NotificationMessage>();
+        private readonly ILogger<InMemoryQueueConsumer> _logger;
 
-        public InMemoryQueueConsumer(ILogger logger, bool seedSampleMessages = true)
+        public InMemoryQueueConsumer(ILogger<InMemoryQueueConsumer> logger, bool seedSampleMessages = true)
         {
             _logger = logger;
             if (seedSampleMessages)
@@ -20,20 +23,19 @@ namespace Contoso.NotificationRelay.Infrastructure.Queue
             }
         }
 
-        public NotificationMessage Dequeue()
+        public Task<NotificationMessage> DequeueAsync(CancellationToken cancellationToken = default)
         {
-            NotificationMessage message;
-            if (_queue.TryDequeue(out message))
+            if (_channel.Reader.TryRead(out var message))
             {
-                _logger.Debug(string.Format("Dequeued MessageId={0}.", message.MessageId));
-                return message;
+                _logger.LogDebug("Dequeued MessageId={MessageId}.", message.MessageId);
+                return Task.FromResult(message);
             }
-            return null;
+            return Task.FromResult<NotificationMessage>(null);
         }
 
-        public void Enqueue(NotificationMessage message)
+        public async Task EnqueueAsync(NotificationMessage message, CancellationToken cancellationToken = default)
         {
-            _queue.Enqueue(message);
+            await _channel.Writer.WriteAsync(message, cancellationToken).ConfigureAwait(false);
         }
 
         private void SeedSampleMessages()
@@ -73,10 +75,10 @@ namespace Contoso.NotificationRelay.Infrastructure.Queue
 
             foreach (var msg in samples)
             {
-                _queue.Enqueue(msg);
+                _channel.Writer.TryWrite(msg);
             }
 
-            _logger.Info(string.Format("Seeded {0} sample notification messages.", samples.Count));
+            _logger.LogInformation("Seeded {Count} sample notification messages.", samples.Count);
         }
     }
 }

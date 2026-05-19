@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Concurrent;
+using System.Threading;
+using System.Threading.Tasks;
 using Contoso.NotificationRelay.Domain.Interfaces;
 
 namespace Contoso.NotificationRelay.Infrastructure.Deduplication
@@ -8,14 +10,15 @@ namespace Contoso.NotificationRelay.Infrastructure.Deduplication
     {
         private readonly ConcurrentDictionary<Guid, byte> _processed = new ConcurrentDictionary<Guid, byte>();
 
-        public bool HasBeenProcessed(Guid messageId)
+        public Task<bool> HasBeenProcessedAsync(Guid messageId, CancellationToken cancellationToken = default)
         {
-            return _processed.ContainsKey(messageId);
+            return Task.FromResult(_processed.ContainsKey(messageId));
         }
 
-        public void MarkProcessed(Guid messageId)
+        public Task MarkProcessedAsync(Guid messageId, CancellationToken cancellationToken = default)
         {
             _processed.TryAdd(messageId, 0);
+            return Task.CompletedTask;
         }
     }
 }

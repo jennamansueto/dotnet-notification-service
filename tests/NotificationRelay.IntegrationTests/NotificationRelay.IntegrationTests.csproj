@@ -2,8 +2,8 @@
 
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
-    <RootNamespace>Contoso.NotificationRelay.UnitTests</RootNamespace>
-    <AssemblyName>NotificationRelay.UnitTests</AssemblyName>
+    <RootNamespace>Contoso.NotificationRelay.IntegrationTests</RootNamespace>
+    <AssemblyName>NotificationRelay.IntegrationTests</AssemblyName>
     <LangVersion>12</LangVersion>
     <ImplicitUsings>disable</ImplicitUsings>
     <Nullable>disable</Nullable>
@@ -18,12 +18,11 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
-    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.2" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="8.0.11" />
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\NotificationRelay.Application\NotificationRelay.Application.csproj" />
-    <ProjectReference Include="..\..\src\NotificationRelay.Infrastructure\NotificationRelay.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\NotificationRelay.Service\NotificationRelay.Service.csproj" />
   </ItemGroup>
 
 </Project>

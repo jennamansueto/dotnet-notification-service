@@ -1,4 +1,7 @@
 using System;
+using System.Threading;
+using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 using Contoso.NotificationRelay.Application.Retry;
 using Contoso.NotificationRelay.Domain.Interfaces;
 using Contoso.NotificationRelay.Domain.Models;
@@ -12,7 +15,7 @@ namespace Contoso.NotificationRelay.Application.Dispatching
         private readonly ITeamsSender _teamsSender;
         private readonly IDeduplicationStore _deduplicationStore;
         private readonly RetryPolicy _retryPolicy;
-        private readonly ILogger _logger;
+        private readonly ILogger<NotificationDispatcher> _logger;
 
         public NotificationDispatcher(
             IEmailSender emailSender,
@@ -20,7 +23,7 @@ namespace Contoso.NotificationRelay.Application.Dispatching
             ITeamsSender teamsSender,
             IDeduplicationStore deduplicationStore,
             RetryPolicy retryPolicy,
-            ILogger logger)
+            ILogger<NotificationDispatcher> logger)
         {
             _emailSender = emailSender;
             _smsSender = smsSender;
@@ -30,47 +33,48 @@ namespace Contoso.NotificationRelay.Application.Dispatching
             _logger = logger;
         }
 
-        public bool Dispatch(NotificationMessage message)
+        public async Task<bool> DispatchAsync(NotificationMessage message, CancellationToken cancellationToken = default)
         {
-            if (_deduplicationStore.HasBeenProcessed(message.MessageId))
+            if (await _deduplicationStore.HasBeenProcessedAsync(message.MessageId, cancellationToken).ConfigureAwait(false))
             {
-                _logger.Info(string.Format(
-                    "Duplicate detected. Skipping MessageId={0} CorrelationId={1}.",
-                    message.MessageId, message.CorrelationId));
+                _logger.LogInformation(
+                    "Duplicate detected. Skipping MessageId={MessageId} CorrelationId={CorrelationId}.",
+                    message.MessageId, message.CorrelationId);
                 return true;
             }
 
-            bool success = _retryPolicy.Execute(
-                () => SendByType(message),
+            bool success = await _retryPolicy.ExecuteAsync(
+                ct => SendByTypeAsync(message, ct),
                 "Send" + message.Type,
-                message.CorrelationId);
+                message.CorrelationId,
+                cancellationToken).ConfigureAwait(false);
 
             if (success)
             {
-                _deduplicationStore.MarkProcessed(message.MessageId);
-                _logger.Info(string.Format(
-                    "Dispatched {0} notification MessageId={1} CorrelationId={2}.",
-                    message.Type, message.MessageId, message.CorrelationId));
+                await _deduplicationStore.MarkProcessedAsync(message.MessageId, cancellationToken).ConfigureAwait(false);
+                _logger.LogInformation(
+                    "Dispatched {Type} notification MessageId={MessageId} CorrelationId={CorrelationId}.",
+                    message.Type, message.MessageId, message.CorrelationId);
             }
 
             return success;
         }
 
-        private void SendByType(NotificationMessage message)
+        private async Task SendByTypeAsync(NotificationMessage message, CancellationToken cancellationToken)
         {
             switch (message.Type)
             {
                 case NotificationType.Email:
-                    _emailSender.Send(message);
+                    await _emailSender.SendAsync(message, cancellationToken).ConfigureAwait(false);
                     break;
                 case NotificationType.Sms:
-                    _smsSender.Send(message);
+                    await _smsSender.SendAsync(message, cancellationToken).ConfigureAwait(false);
                     break;
                 case NotificationType.Teams:
-                    _teamsSender.Send(message);
+                    await _teamsSender.SendAsync(message, cancellationToken).ConfigureAwait(false);
                     break;
                 default:
-                    throw new ArgumentOutOfRangeException("message",
+                    throw new ArgumentOutOfRangeException(nameof(message),
                         string.Format("Unknown notification type: {0}", message.Type));
             }
         }
