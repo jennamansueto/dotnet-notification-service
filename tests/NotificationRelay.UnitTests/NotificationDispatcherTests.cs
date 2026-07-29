@@ -1,83 +1,82 @@
 using System;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
+using System.Threading;
+using System.Threading.Tasks;
+using Xunit;
 using Contoso.NotificationRelay.Application.Dispatching;
 using Contoso.NotificationRelay.Application.Retry;
 using Contoso.NotificationRelay.Domain.Models;
 using Contoso.NotificationRelay.Infrastructure.Deduplication;
-using Contoso.NotificationRelay.Infrastructure.Logging;
 using Contoso.NotificationRelay.Infrastructure.Providers;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Contoso.NotificationRelay.UnitTests
 {
-    [TestClass]
     public class NotificationDispatcherTests
     {
-        private InMemoryEmailSender _emailSender;
-        private InMemorySmsSender _smsSender;
-        private InMemoryTeamsSender _teamsSender;
-        private InMemoryDeduplicationStore _dedupeStore;
-        private NotificationDispatcher _sut;
+        private readonly InMemoryEmailSender _emailSender;
+        private readonly InMemorySmsSender _smsSender;
+        private readonly InMemoryTeamsSender _teamsSender;
+        private readonly InMemoryDeduplicationStore _dedupeStore;
+        private readonly NotificationDispatcher _sut;
 
-        [TestInitialize]
-        public void SetUp()
+        public NotificationDispatcherTests()
         {
-            var logger = new ConsoleOnlyLogger();
-            _emailSender = new InMemoryEmailSender(logger);
-            _smsSender = new InMemorySmsSender(logger);
-            _teamsSender = new InMemoryTeamsSender(logger);
+            _emailSender = new InMemoryEmailSender(NullLogger<InMemoryEmailSender>.Instance);
+            _smsSender = new InMemorySmsSender(NullLogger<InMemorySmsSender>.Instance);
+            _teamsSender = new InMemoryTeamsSender(NullLogger<InMemoryTeamsSender>.Instance);
             _dedupeStore = new InMemoryDeduplicationStore();
-            var retryPolicy = new RetryPolicy(logger, maxRetries: 2, initialBackoffMs: 1);
+            var retryPolicy = new RetryPolicy(NullLogger<RetryPolicy>.Instance, maxRetries: 2, initialBackoffMs: 1);
 
             _sut = new NotificationDispatcher(
                 _emailSender, _smsSender, _teamsSender,
-                _dedupeStore, retryPolicy, logger);
+                _dedupeStore, retryPolicy, NullLogger<NotificationDispatcher>.Instance);
         }
 
-        [TestMethod]
-        public void Dispatch_Email_SendsViaEmailProvider()
+        [Fact]
+        public async Task Dispatch_Email_SendsViaEmailProvider()
         {
             var msg = CreateMessage(NotificationType.Email);
 
-            bool result = _sut.Dispatch(msg);
+            bool result = await _sut.DispatchAsync(msg, CancellationToken.None);
 
-            Assert.IsTrue(result);
-            Assert.AreEqual(1, _emailSender.GetSentMessages().Count);
-            Assert.AreEqual(0, _smsSender.GetSentMessages().Count);
-            Assert.AreEqual(0, _teamsSender.GetSentMessages().Count);
+            Assert.True(result);
+            Assert.Single(_emailSender.GetSentMessages());
+            Assert.Empty(_smsSender.GetSentMessages());
+            Assert.Empty(_teamsSender.GetSentMessages());
         }
 
-        [TestMethod]
-        public void Dispatch_Sms_SendsViaSmsProvider()
+        [Fact]
+        public async Task Dispatch_Sms_SendsViaSmsProvider()
         {
             var msg = CreateMessage(NotificationType.Sms);
 
-            bool result = _sut.Dispatch(msg);
+            bool result = await _sut.DispatchAsync(msg, CancellationToken.None);
 
-            Assert.IsTrue(result);
-            Assert.AreEqual(0, _emailSender.GetSentMessages().Count);
-            Assert.AreEqual(1, _smsSender.GetSentMessages().Count);
+            Assert.True(result);
+            Assert.Empty(_emailSender.GetSentMessages());
+            Assert.Single(_smsSender.GetSentMessages());
         }
 
-        [TestMethod]
-        public void Dispatch_Teams_SendsViaTeamsProvider()
+        [Fact]
+        public async Task Dispatch_Teams_SendsViaTeamsProvider()
         {
             var msg = CreateMessage(NotificationType.Teams);
 
-            bool result = _sut.Dispatch(msg);
+            bool result = await _sut.DispatchAsync(msg, CancellationToken.None);
 
-            Assert.IsTrue(result);
-            Assert.AreEqual(1, _teamsSender.GetSentMessages().Count);
+            Assert.True(result);
+            Assert.Single(_teamsSender.GetSentMessages());
         }
 
-        [TestMethod]
-        public void Dispatch_DuplicateMessage_IsSkipped()
+        [Fact]
+        public async Task Dispatch_DuplicateMessage_IsSkipped()
         {
             var msg = CreateMessage(NotificationType.Sms);
 
-            _sut.Dispatch(msg);
-            _sut.Dispatch(msg); // duplicate
+            await _sut.DispatchAsync(msg, CancellationToken.None);
+            await _sut.DispatchAsync(msg, CancellationToken.None); // duplicate
 
-            Assert.AreEqual(1, _smsSender.GetSentMessages().Count);
+            Assert.Single(_smsSender.GetSentMessages());
         }
 
         private static NotificationMessage CreateMessage(NotificationType type)
