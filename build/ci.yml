@@ -1,5 +1,5 @@
-# Placeholder CI pipeline — Azure DevOps / GitHub Actions
-# Replace with your actual CI provider configuration.
+# CI pipeline — Azure DevOps
+# Migrated to .NET 8: dotnet CLI on Linux (no NuGet/MSBuild/VSTest, no Windows).
 
 trigger:
   branches:
@@ -8,30 +8,24 @@ trigger:
       - release/*
 
 pool:
-  vmImage: 'windows-latest'  # .NET Framework 4.7.2 requires Windows
+  vmImage: 'ubuntu-latest'
 
 variables:
   buildConfiguration: 'Release'
+  solution: 'Contoso.NotificationRelay.Legacy.sln'
 
 steps:
-  - task: NuGetToolInstaller@1
-    displayName: 'Install NuGet'
-
-  - task: NuGetCommand@2
-    displayName: 'Restore NuGet Packages'
+  - task: UseDotNet@2
+    displayName: 'Install .NET 8 SDK'
     inputs:
-      restoreSolution: 'Contoso.NotificationRelay.Legacy.sln'
+      packageType: 'sdk'
+      version: '8.0.x'
 
-  - task: MSBuild@1
-    displayName: 'Build Solution'
-    inputs:
-      solution: 'Contoso.NotificationRelay.Legacy.sln'
-      configuration: $(buildConfiguration)
+  - script: dotnet restore $(solution)
+    displayName: 'Restore'
 
-  - task: VSTest@2
-    displayName: 'Run Tests'
-    inputs:
-      testAssemblyVer2: |
-        **\*UnitTests*.dll
-      searchFolder: '$(System.DefaultWorkingDirectory)'
-      configuration: $(buildConfiguration)
+  - script: dotnet build $(solution) --configuration $(buildConfiguration) --no-restore
+    displayName: 'Build'
+
+  - script: dotnet test $(solution) --configuration $(buildConfiguration) --no-build
+    displayName: 'Test'

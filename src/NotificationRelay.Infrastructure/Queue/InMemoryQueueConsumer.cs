@@ -1,17 +1,20 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
 using Contoso.NotificationRelay.Domain.Interfaces;
 using Contoso.NotificationRelay.Domain.Models;
+using Microsoft.Extensions.Logging;
 
 namespace Contoso.NotificationRelay.Infrastructure.Queue
 {
     public class InMemoryQueueConsumer : IQueueConsumer
     {
         private readonly ConcurrentQueue<NotificationMessage> _queue = new ConcurrentQueue<NotificationMessage>();
-        private readonly ILogger _logger;
+        private readonly ILogger<InMemoryQueueConsumer> _logger;
 
-        public InMemoryQueueConsumer(ILogger logger, bool seedSampleMessages = true)
+        public InMemoryQueueConsumer(ILogger<InMemoryQueueConsumer> logger, bool seedSampleMessages = true)
         {
             _logger = logger;
             if (seedSampleMessages)
@@ -20,15 +23,15 @@ namespace Contoso.NotificationRelay.Infrastructure.Queue
             }
         }
 
-        public NotificationMessage Dequeue()
+        public Task<NotificationMessage> DequeueAsync(CancellationToken cancellationToken)
         {
             NotificationMessage message;
             if (_queue.TryDequeue(out message))
             {
-                _logger.Debug(string.Format("Dequeued MessageId={0}.", message.MessageId));
-                return message;
+                _logger.LogDebug("Dequeued MessageId={MessageId}.", message.MessageId);
+                return Task.FromResult(message);
             }
-            return null;
+            return Task.FromResult<NotificationMessage>(null);
         }
 
         public void Enqueue(NotificationMessage message)
@@ -76,7 +79,7 @@ namespace Contoso.NotificationRelay.Infrastructure.Queue
                 _queue.Enqueue(msg);
             }
 
-            _logger.Info(string.Format("Seeded {0} sample notification messages.", samples.Count));
+            _logger.LogInformation("Seeded {Count} sample notification messages.", samples.Count);
         }
     }
 }
